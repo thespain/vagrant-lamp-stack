@@ -14,7 +14,9 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", inline: <<-SHELL1
     yum upgrade -y
     yum install -y centos-release-scl 
+    yum install -y https://rpms.remirepo.net/enterprise/remi-release-7.rpm
     puppet module install puppetlabs-apache
+    puppet module install puppet-php
     puppet apply /vagrant/manifests/site.pp
   SHELL1
 end

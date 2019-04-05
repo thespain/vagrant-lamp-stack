@@ -19,16 +19,33 @@ class { 'apache::version':
 class { 'apache':
   default_vhost => false,
   default_mods  => false,
-  mpm_module    => 'event',  
+  mpm_module    => 'event',
 }
 
+class { 'apache::mod::proxy': }
+class { 'apache::mod::proxy_fcgi': }
+class { 'apache::mod::dir': }
+
 apache::vhost { 'localhost-nossl':
-  port    => '80',
-  docroot => '/vagrant/htdocs',
+  port            => '80',
+  docroot         => '/vagrant/htdocs',
+  directoryindex  => 'index.php',
+  custom_fragment => "ProxyPassMatch ^/(.*\\.php(/.*)?)$ fcgi://127.0.0.1:9000/vagrant/htdocs/$1",
 }
 
 apache::vhost { 'localhost':
-  port    => '443',
-  docroot => '/vagrant/htdocs',
-  ssl     => true,
+  port            => '443',
+  docroot         => '/vagrant/htdocs',
+  ssl             => true,
+  directoryindex  => 'index.php',
+  custom_fragment => "ProxyPassMatch ^/(.*\\.php(/.*)?)$ fcgi://127.0.0.1:9000/vagrant/htdocs/$1",
 }
+
+class { '::php::globals':
+  php_version => 'php73',
+  rhscl_mode  => 'remi',
+}
+-> class { '::php':
+  manage_repos => false
+}
+
