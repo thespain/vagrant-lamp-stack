@@ -19,33 +19,124 @@ class { 'apache::version':
 class { 'apache':
   default_vhost => false,
   default_mods  => false,
+  user          => 'vagrant',
+  group         => 'vagrant',
   mpm_module    => 'event',
 }
 
+class { 'apache::mod::alias': }
+class { 'apache::mod::dir': }
 class { 'apache::mod::proxy': }
 class { 'apache::mod::proxy_fcgi': }
-class { 'apache::mod::dir': }
+
+apache::custom_config { 'php73-php-fpm':
+  priority       => false,
+  content  => '
+AddType text/html .php
+DirectoryIndex index.php
+<FilesMatch \.php$>
+    SetHandler "proxy:fcgi://127.0.0.1:9000"
+</FilesMatch>
+',
+}
 
 apache::vhost { 'localhost-nossl':
   port            => '80',
   docroot         => '/vagrant/htdocs',
+  docroot_owner   => 'vagrant',
+  docroot_group   => 'vagrant',
   directoryindex  => 'index.php',
-  custom_fragment => "ProxyPassMatch ^/(.*\\.php(/.*)?)$ fcgi://127.0.0.1:9000/vagrant/htdocs/$1",
+  directories     => [
+    {
+      path => '/opt/rh/httpd24/root/var/www/phpmyadmin',
+      options => ['Indexes', 'FollowSymLinks', 'MultiViews'],
+      allow_override => ['None'],
+      require        => ['all granted'],
+    },
+    {
+      path => '/vagrant/htdocs',
+      options => ['Indexes', 'FollowSymLinks', 'MultiViews'],
+      allow_override => ['None'],
+      require        => ['all granted'],
+    }
+  ],
+  aliases         => [
+    alias => '/phpmyadmin',
+    path  => '/opt/rh/httpd24/root/var/www/phpmyadmin',
+  ],
 }
 
 apache::vhost { 'localhost':
   port            => '443',
   docroot         => '/vagrant/htdocs',
   ssl             => true,
+  docroot_owner   => 'vagrant',
+  docroot_group   => 'vagrant',
   directoryindex  => 'index.php',
-  custom_fragment => "ProxyPassMatch ^/(.*\\.php(/.*)?)$ fcgi://127.0.0.1:9000/vagrant/htdocs/$1",
+  directories     => [
+    {
+      path => '/opt/rh/httpd24/root/var/www/phpmyadmin',
+      options => ['Indexes', 'FollowSymLinks', 'MultiViews'],
+      allow_override => ['None'],
+      require        => ['all granted'],
+    },
+    {
+      path => '/vagrant/htdocs',
+      options => ['Indexes', 'FollowSymLinks', 'MultiViews'],
+      allow_override => ['None'],
+      require        => ['all granted'],
+    }
+  ],
+  aliases         => [
+    alias => '/phpmyadmin',
+    path  => '/opt/rh/httpd24/root/var/www/phpmyadmin',
+  ],
 }
 
-class { '::php::globals':
+class { 'php::globals':
   php_version => 'php73',
   rhscl_mode  => 'remi',
 }
--> class { '::php':
-  manage_repos => false
+-> class { 'php':
+  manage_repos => false,
+  extensions => {
+   mysqlnd => { },
+  }
+}
+
+package { 'rh-mariadb101-mariadb-server':
+  ensure => present,
+}
+
+service { 'rh-mariadb101-mariadb':
+  ensure  => running,
+  require => Package['rh-mariadb101-mariadb-server'],
+}
+
+file { '/opt/rh/httpd24/root/var/www/phpmyadmin':
+  ensure  => directory,
+  owner   => 'vagrant',
+  group   => 'vagrant',
+  require => Class['php'],
+}
+
+vcsrepo { '/opt/rh/httpd24/root/var/www/phpmyadmin':
+    ensure   => latest,
+    provider => 'git',
+    source   => 'https://github.com/phpmyadmin/phpmyadmin.git',
+    user     => 'vagrant',
+    group    => 'vagrant',
+    revision => 'STABLE',
+    depth    => 1,
+    require  => File['/opt/rh/httpd24/root/var/www/phpmyadmin'],
+  }
+
+exec { 'phpmyadmin-install':
+  command     => '/usr/local/bin/composer update -d /opt/rh/httpd24/root/var/www/phpmyadmin --no-dev',
+  creates     => '/opt/rh/httpd24/root/var/www/phpmyadmin/vendor/autoload.php',
+  environment => 'COMPOSER_HOME=/home/vagrant',
+  user        => 'vagrant',
+  group       => 'vagrant',
+  require     => Vcsrepo['/opt/rh/httpd24/root/var/www/phpmyadmin'],
 }
 

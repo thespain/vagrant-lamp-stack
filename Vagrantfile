@@ -17,6 +17,7 @@ Vagrant.configure("2") do |config|
     yum install -y https://rpms.remirepo.net/enterprise/remi-release-7.rpm
     puppet module install puppetlabs-apache
     puppet module install puppet-php
+    puppet module install puppetlabs-vcsrepo
     puppet apply /vagrant/manifests/site.pp
   SHELL1
 end
